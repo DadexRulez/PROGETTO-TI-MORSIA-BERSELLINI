@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<link rel="stylesheet" href="styleSheet.css">
+	</head>
+
+	<body>
+		<ul id=connectedPeers></ul>
+		<div id="myId"></div>
+		<canvas id=canvas width="1400" height="800" style="border-style: solid; border-width: 3px; display: none;"></canvas>
+		<div id="start_game">
+			<input type="button" id="startButton" value="START">
+			<div id="mainMenu">
+				<input type="button" id="createLobbyButton" value="CREATE">
+				<space50><space50>
+				<input type="button" id="joinLobbyButton" value="JOIN">
+			</div>
+			<div id="createLobbyConfig">
+				<p style="position: absolute; top: 10px; left: 20px;"><b>Create a new lobby:</b></p>
+				Lobby name: <input id="lobbyID" type="text"><br><br><br>
+				Number of players: <select id="pNumber">
+					<option value = 1>1</option>
+					<option value = 2>2</option>
+					<option value = 3>3</option>
+					<option value = 4>4</option>
+				</select>&nbsp;&nbsp;
+				<input id="backButton1" type="button" value="Back">
+				<input id="createLobbyBtn" type="button" value="Create Lobby">
+			</div>
+			<div id="joinLobbyConfig">
+				<b>Lobbies: </b>
+				<input id="refreshLobbyBtn" type="button" value="Refresh">
+				<input id="backButton2" type="button" value="Back">
+				<div id="availableLobbies" name="availableLobbies"></div>
+				<input id="joinLobbyBtn" type="button" value="Join Lobby"><br>
+			</div>
+			<div id="waitingPlayers"></div>
+			<div id="readyPlayers">
+				The game is ready to start...<br>Are you ready?<br><br>
+				<label for="redSel" style="color: red; font-size: 20px;">Red team</label>
+				<input type="radio" id="redSel" name="teamForm" value=0 checked>
+				<space50><space50>
+				<label for="blueSel" style="color: blue; font-size: 20px;">Blue team</label>
+				<input type="radio" id="blueSel" name="teamForm" value=1><br><br><br>
+				<input id="readyButton" type="button" value="READY">
+			</div>
+		</div>
+
+		<script type="module">
+
+			function sign(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
+
+			///////////// INIZIO CLASSI /////////////
+			class Actor
+			{
+				move()
+				{
+				   throw new Error('You have to implement the method move()!');
+				}
+
+				collide(other)
+				{
+				   throw new Error('You have to implement the method collide()!');
+				}
+
+				position()
+				{
+					throw new Error('You have to implement the method position()!');
+				}
+
+				draw()
+				{
+					throw new Error('You have to implement the method draw()!');
+				}
+			};
+
+			class Arena
+			{
+				constructor(width, height, ground, skins)
+				{
+					this.width = width;
+					this.height = height;
+					this.ground_level = ground;
+					this.skins = skins;
+					this.actors = [];
+					this.frame = 0; // timer to spawn random objects
+
+					this.game_over = 2; // max points per player
+					this.red_deaths = 0;
+					this.blue_deaths = 0;
+				}
+
+				add(actor)
+				{
+					if(!this.actors.includes(actor))
+						this.actors.push(actor);
+				}
+
+				remove(actor)
+				{
+					if(this.actors.includes(actor))
+					{
+						const index = this.actors.indexOf(actor);
+						if (index > -1)
+						{
+							var self = this.actors[index];
+							if(self instanceof Tank)
+							{
+								if(self.color == "red")
+								{
+									setTimeout (this.red_deaths++, 100);
+								}
+								else if(self.color == "blue")
+								{
+									setTimeout (this.blue_deaths++, 100);
+								}
+							}
+							this.actors.splice(index, 1);
+						}
+					}
+				}
+
+				genObj(){
+					var rand = Math.floor(Math.random() * 32);
+
+					if(rand >= 0 && rand <= 3) // SPAWN A PLANE FROM RIGHT OR LEFT
+					{
+						var spawnPos = Math.floor(Math.random() * 2);
+						if(spawnPos == 0)
+						{
+							this.add(new Plane(Math.random().toString(36).substring(7), this, imageArray, -200, Math.random() * (160 - 90) + 90, 220, 60, 100, 1));
+						}
+						else if(spawnPos == 1)
+						{
+							this.add(new Plane(Math.random().toString(36).substring(7), this, imageArray, this.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1));
+						}
+					}
+					else if(rand > 3 && rand <= 12) // ALL PLAINS DROP A LOOT CRATE
+					{
+						this.actors.forEach(function(a)
+						{
+							if(a.className == "PLANE")
+							{
+								a.dropSupply();
+							}
+						});
+					}
+					else if(rand > 12 && rand <= 17) // SPAWN AMMO CRATE
+					{
+						var spawnPos = Math.floor(Math.random() * (this.width + 1));
+						this.add(new Supply(this, spawnPos, this.ground_level - 60, 50, 50, 1.5, "ammo", this.skins['ammoDrop']));
+					}
+					else if(rand > 17 && rand <= 27) // ALL PLAINS DROP A BOMB
+					{
+						this.actors.forEach(function(a)
+						{
+							if(a.className == "PLANE")
+							{
+								a.dropBomb();
+							}
+						});
+					}
+					else if(rand > 27 && rand <= 32) // SPAWN ROCK WITH RANDOM SHAPE
+					{
+						var rocks = [this.skins['rock1'], this.skins['rock2'], this.skins['rock3']]
+						var rr = Math.floor(Math.random() * 3);
+
+						var spawnPos = Math.floor(Math.random() * (this.width - 80));
+						this.add(new Barrier(this, spawnPos, this.ground_level - 60, 80, 60, 1, rocks[rr]));
+					}
+				}
+
+				gameLogic()
+				{
+					this.frame++;
+
+					// PROBABILTY OF GENERATION OF A RANDOM OBJECT
+
+					if(this.frame >= 160) // try after 4 seconds from last spawn
+					{
+						var gen = Math.floor(Math.random() * 40);
+						if(gen == 0)
+						{
+							this.genObj();
+							this.frame = 0;
+						}
+					}
+				}
+
+				radar(ctx)
+				{
+					var scale = 0.11;
+					var offsetTop = 0;
+					var offsetRight = 0;
+					var aHeight = this.height;
+					var aWidth = this.width;
+					var rHeight = this.height * scale;
+					var rWidth = this.width * scale;
+					var gL = this.ground_level * scale + offsetTop;
+					var xMultiplier = rWidth / this.width;
+					var yMultiplier = rHeight / this.height;
+
+					ctx.fillStyle = "black";
+					ctx.fillRect(ctx.canvas.width - rWidth - offsetRight, offsetTop, rWidth, rHeight);
+
+					ctx.strokeStyle = "green";
+					ctx.lineWidth   = 2;
+					ctx.strokeRect(ctx.canvas.width - rWidth - offsetRight, offsetTop, rWidth, rHeight);
+
+					ctx.strokeStyle = "white";
+					ctx.lineWidth   = 1;
+					ctx.beginPath();
+					ctx.moveTo(ctx.canvas.width - rWidth - offsetRight, gL);
+					ctx.lineTo(ctx.canvas.width - offsetRight, gL);
+					ctx.stroke();
+
+					var actors = this.actors.reverse();
+					actors.forEach(function(a)
+					{
+						let [x, y, w, h] = a.position();
+
+						x = (x + w / 2) * xMultiplier;
+						x = ctx.canvas.width - rWidth - offsetRight + x;
+
+						y = (y + h / 2) * yMultiplier;
+						y = offsetTop + y;
+
+						w = w * xMultiplier;
+						h = h * yMultiplier;
+
+						if(a instanceof Tank)
+						{
+							if(a.color == "red")
+							{
+								ctx.fillStyle = "red";
+							}
+							else if(a.color == "blue")
+							{
+								ctx.fillStyle = "blue";
+							}
+							ctx.beginPath();
+							ctx.moveTo(x, y);
+							ctx.lineTo(x + 7, y - 7);
+							ctx.lineTo(x - 7, y - 7);
+							ctx.fill();
+						}
+						if(a instanceof Shell)
+						{
+							if(y >= offsetTop && y <= gL)
+							{
+								ctx.fillStyle = "white";
+								ctx.beginPath();
+								ctx.arc(x, y, 2,  0, 2 * Math.PI);
+								ctx.fill();
+							}
+						}
+						if(a instanceof Plane)
+						{
+							if(y <= gL && x >= ctx.canvas.width - rWidth - offsetRight && x <= ctx.canvas.width - offsetRight)
+							{
+								ctx.fillStyle = "red";
+								ctx.beginPath();
+								ctx.arc(x , y, 3,  0, 2 * Math.PI);
+							  ctx.fill();
+							}
+						}
+						if(a instanceof Barrier)
+						{
+							ctx.strokeStyle = "white";
+							ctx.beginPath();
+							ctx.rect(x - w / 2, y - h / 2, w, h);
+						  ctx.stroke();
+						}
+					});
+				}
+
+				check_collision = function(a1, a2)
+				{
+					let [x1, y1, w1, h1] = a1.position();
+					let [x2, y2, w2, h2] = a2.position();
+
+					return (y2 < y1 + h1 && y1 < y2 + h2
+						&& x2 < x1 + w1 && x1 < x2 + w2
+						&& this.actors.includes(a1) && this.actors.includes(a2))
+				}.bind(this);
+
+				move_all()
+				{
+					var self = this;
+
+					var actors = this.actors.reverse();
+					actors.forEach(function(a)
+					{
+						var previous_pos = a.position();
+						a.move();
+
+						actors.forEach(function(other)
+						{
+							if(other !== a && self.check_collision(a, other))
+							{
+								a.collide(other);
+								other.collide(a);
+							}
+						});
+					});
+				};
+
+				size()
+				{
+					return [this.width, this.height];
+				}
+			};
+
+			class Tank extends Actor
+			{
+				constructor(identifier, arena, x, y, w, h, s, c, health, skins) // arena, x, y, width, height, max speed, color, health
+				{
+					super();
+					this.identifier = identifier;
+					this.arena = arena;
+					this.x = x;
+					this.y = y - h;
+					this.width = w;
+					this.height = h;
+					this.maxSpeed = s;
+					this.color = c;
+					this.health = health;
+
+					this.skins = skins;
+
+					this.mass = 30000;
+					this.direction = 0;
+					this.vx = 0;
+					this.Fx = 60000;
+					this.ax = 0;
+					this.friction = 0;
+
+
+					if(this.color == "red")
+					{
+						this.cannonAngle = 0;
+					}
+					else
+					{
+						this.cannonAngle = 180;
+					}
+					this.dCannonAngle = 0;
+					this.cannonSpeed = 2;
+
+					this.loadedShell = null;
+					this.reloadSpeed = 3000;
+					this.firePower = 17;
+					this.ammo = 10;
+
+					this.className = "TANK";
+					this.alive = true;
+
+					this.emptyAlert = 81;
+
+					arena.add(this);
+				}
+
+				move()
+				{
+					var frameRate = 1/40;
+					var ag = 9.81;  // m / s^2
+					var tollerance = 0.1;
+					var force = (this.Fx * this.direction) - (this.mass * ag * this.friction * sign(this.vx));
+
+					if(this.health <= 0 && this.alive == true)
+					{
+						this.alive = false;
+						this.arena.remove(this);
+					}
+
+					if(this.alive)
+					{
+						// Calculate acceleration ( F = ma )
+						this.ax = force / this.mass;
+
+						this.vx = (this.direction == 0 && this.vx > -tollerance && this.vx < tollerance ? 0 : this.vx);
+						this.ax = (this.direction == 0 && this.vx == 0 ? 0 : this.ax);
+
+						// Integrate to get velocity
+						if(this.vx + this.ax * frameRate <= this.maxSpeed && this.vx + this.ax * frameRate >= -this.maxSpeed)
+						this.vx += this.ax * frameRate;
+
+						// Integrate to get position
+						this.x += this.vx * frameRate * 100;
+
+						if (this.y > arena.height - this.height)
+						{
+							this.y = arena.height - this.height;
+						}
+						if (this.x > arena.width - this.width)
+						{
+							this.x = arena.width - this.width;
+							this.vx = 0;
+						}
+						if (this.x < 0)
+						{
+							this.x = 0;
+							this.vx = 0;
+						}
+						if(this.color == "red")
+						{
+							if(this.cannonAngle + this.dCannonAngle >= 90)
+							{
+								this.cannonAngle = 90;
+							}
+							else if(this.cannonAngle + this.dCannonAngle <= 0)
+							{
+								this.cannonAngle = 0;
+							}
+						}
+						else if(this.color == "blue")
+						{
+							if(this.cannonAngle + this.dCannonAngle <= 90)
+							{
+								this.cannonAngle = 90;
+							}
+							else if(this.cannonAngle + this.dCannonAngle >= 180)
+							{
+								this.cannonAngle = 180;
+							}
+						}
+						this.cannonAngle += this.dCannonAngle;
+					}
+				}
+
+				go_right()
+				{
+					this.direction = 1;
+				}
+
+				go_left()
+				{
+					this.direction = -1;
+				}
+
+				stop()
+				{
+					this.direction = 0;
+				}
+
+				collide(other)
+				{
+					if(other instanceof Barrier)
+					{
+						if(other.destructible == 0) //IF THE BARRIER IS UNDESTRUCTIBLE STOP
+						{
+							if (this.x < other.x)
+							{
+								this.x = other.x - this.width;
+								this.vx = 0;
+							}
+							if (this.x > other.x)
+							{
+								this.x = other.x + other.width;
+								this.vx = 0;
+							}
+						}
+						if(other.destructible == 1) //IF THE BARRIER IS DESTRUCTIBLE DESTROY IT
+						{
+							this.vx = 0;
+							other.arena.remove(other);
+						}
+					}
+					if(other instanceof Terrain) //TAKE THE FRICTION FROM THE TERRAIN
+					{
+						this.friction = other.friction;
+					}
+					if(other instanceof Supply)
+					{
+						if(other.loot == "armour" && this.health < 100) //INCREASE HEALTH BY 50 UP TO 100
+						{
+							this.health += 50;
+							if(this.health > 100){
+								this.health = 100;
+							}
+						}
+						if(other.loot == "ammo") //INCREASE AMMO BY 10
+						{
+							this.ammo += 5;
+						}
+						if(other.loot == "haste") //DECREASE RELOAD SPEED TO 1000 MS FOR 5 SECONDS
+						{
+							this.Fx = 80000;
+							this.maxSpeed = 3;
+							var me = this;
+							setTimeout(function(){me.Fx = 60000; me.vx = 2; me.maxSpeed = 2;}, 10000);
+						}
+						this.arena.remove(other);
+					}
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+
+				draw(ctx)
+				{
+					ctx.save();
+
+					if(this.color == "red"){
+						ctx.translate(this.x + this.width/2 - xView, this.y + this.height/4 - yView);
+						ctx.rotate(-this.cannonAngle*Math.PI/180);
+						ctx.drawImage(this.skins['cannon'], 120, 0, 120, 9, 0, -this.height/16, 120, this.height/8);
+
+						ctx.restore();
+
+						ctx.drawImage(this.skins['hull'], 130, 0, 130, 80, this.x - xView, this.y - yView, this.width, this.height);
+					}
+					else if(this.color == "blue"){
+						ctx.translate(this.x + this.width/2 - xView, this.y + this.height/4 - yView);
+						ctx.rotate(-this.cannonAngle * Math.PI/180);
+						ctx.drawImage(this.skins['cannon'], 0, 0, 120, 9, 0, -this.height/16, 120, this.height/8);
+
+						ctx.restore();
+
+						ctx.drawImage(this.skins['hull'], 0, 0, 130, 80, this.x - xView, this.y - yView, this.width, this.height);
+					}
+				}
+
+				loadShell(shell)
+				{
+					this.loadedShell = shell;
+				}
+
+
+				reload(shell)
+				{
+					reloading.play();
+					let myFirstPromise = new Promise((resolve, reject) => {
+						var me = this;
+						setTimeout(function(){me.loadShell(shell);}, this.reloadSpeed);
+					});
+				}
+
+				raiseCannon()
+				{
+					this.dCannonAngle = this.cannonSpeed;
+				}
+
+				lowerCannon()
+				{
+					this.dCannonAngle = -this.cannonSpeed;
+				}
+
+				stopCannon()
+				{
+					this.dCannonAngle = 0;
+				}
+
+				shoot(ctx)
+				{
+					if(this.ammo > 0)
+					{
+						if(this.alive && this.loadedShell != null)
+						{
+							this.loadedShell.x = this.x + this.width/2 + Math.cos(this.cannonAngle * Math.PI / 180) * 120;
+							this.loadedShell.y = this.y + this.height/4 - Math.sin(this.cannonAngle * Math.PI / 180) * 120;
+							this.loadedShell.vx = Math.cos(this.cannonAngle * Math.PI / 180) * this.firePower;
+							this.loadedShell.vy = -Math.sin(this.cannonAngle * Math.PI / 180) * this.firePower;
+							arena.add(this.loadedShell);
+							tank_firing.play();
+							this.reload(new Shell(Math.random().toString(36).substring(7), this.arena, this.skins, this.x + this.width/2, this.y - 6, 0, 0, 20, this.identifier, 60));
+							this.loadedShell = null;
+							this.ammo--;
+						}
+					}
+					else
+					{
+						this.emptyAlert = 0;
+					}
+				}
+
+				emptyAmmo(ctx)
+				{
+					if(this.emptyAlert <= 80)
+					{
+						ctx.font = "30px Courier New";
+						ctx.textAlign = "center";
+						ctx.fillText("NO AMMO REMAIN!", ctx.canvas.width / 2, 250);
+						ctx.textAlign = "left";
+						this.emptyAlert++;
+					}
+				}
+			}
+
+			class Shell extends Actor
+			{
+				constructor(identifier, arena, skins, x, y, vx, vy, mass, tankIdentifier, damage)
+				{
+					super();
+					this.identifier = identifier;
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.vx = vx; // m / s
+					this.vy = vy; // m / s
+					this.mass = mass;
+					this.radius = 6;
+					this.restitution = -0.05;
+					this.className = "SHELL";
+					this.tankIdentifier = tankIdentifier;
+					this.damage = damage;
+					this.skins = skins;
+				}
+
+				move()
+				{
+					var Cd = 0.47;  // Dimensionless
+					var rho = 1.22; // kg / m^3
+					var A = Math.PI * 10 * 10 / (10000); // m^2
+					var ag = 9.81;  // m / s^2
+
+					var frameRate = 1/40;
+					var Fx = -0.5 * Cd * A * rho * this.vx * this.vx * this.vx / Math.abs(this.vx);
+				  var Fy = -0.5 * Cd * A * rho * this.vy * this.vy * this.vy / Math.abs(this.vy);
+
+					Fx = (isNaN(Fx) ? 0 : Fx);
+					Fy = (isNaN(Fy) ? 0 : Fy);
+
+					// Calculate acceleration ( F = ma )
+					var ax = Fx / this.mass;
+					var ay = ag + (Fy / this.mass);
+
+					// Integrate to get velocity
+					this.vx += ax*frameRate;
+					this.vy += ay*frameRate;
+
+					// Integrate to get position
+					this.x += this.vx*frameRate*100;
+					this.y += this.vy*frameRate*100;
+
+					if (this.x > this.arena.width - this.radius)
+					{
+						this.vx *= this.restitution;
+						this.x = this.arena.width - this.radius;
+					}
+					if (this.x < this.radius)
+					{
+						this.vx *= this.restitution;
+						this.x = this.radius;
+					}
+				}
+
+				collide(other)
+				{
+					if(other instanceof Tank)
+					{
+						this.arena.add(new Explosion(arena, this.x + this.radius / 2 - 70, this.y + this.radius - 70, 140, 140, "generic", this.skins));
+						other.health = other.health - this.damage;
+						this.arena.remove(this);
+					}
+					if(other instanceof Plane)
+					{
+						this.arena.add(new Explosion(arena, this.x + this.radius / 2 - 70, this.y + this.radius - 70, 140, 140, "generic", this.skins));
+						other.falling = true;
+						this.arena.remove(this);
+					}
+					if(other instanceof Terrain)
+					{
+						this.arena.add(new Explosion(arena, this.x + this.radius / 2 - 30, this.arena.ground_level - 90, 60, 90, "flat", this.skins));
+						this.arena.remove(this);
+					}
+					if(other instanceof Barrier)
+					{
+						this.arena.add(new Explosion(arena, this.x + this.radius / 2 - 70, this.y + this.radius - 70, 140, 140, "generic", this.skins));
+						if(other.destructible == 0)
+						{
+							this.arena.remove(this);
+						}
+						if(other.destructible == 1)
+						{
+							this.arena.remove(other);
+							this.arena.remove(this);
+						}
+					}
+				}
+
+				draw(ctx)
+				{
+					ctx.fillStyle = "black";
+					ctx.beginPath();
+					ctx.arc(this.x - xView, this.y - yView, this.radius, 0, Math.PI * 2, true);
+					ctx.fill();
+					ctx.closePath();
+				}
+
+				position()
+				{
+					return [this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2];
+				}
+			}
+
+			class Plane extends Actor
+			{
+				constructor(identifier, arena, skins, x, y, w, h, speed, direction)
+				{
+					super();
+					this.identifier = identifier;
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.speed = speed;
+					this.direction = direction;
+					this.skins = skins;
+
+					this.health = 1;
+					this.fallSpeed = 0;
+					this.falling = false;
+					this.mass = 1000;
+
+					this.className = "PLANE";
+				}
+
+				move()
+				{
+					var Cd = 0.47;  // Dimensionless
+					var rho = 0.4; // kg / m^3
+					var A = 10; // m^2
+					var ag = 9.81;  // m / s^2
+					var Fy = -0.5 * Cd * A * rho * this.vy * this.vy * this.vy / Math.abs(this.vy);
+					var Fx = -0.5 * Cd * A * rho * this.vx * this.vx * this.vx / Math.abs(this.vx);
+
+					Fx = (isNaN(Fx) ? 0 : Fx);
+					Fy = (isNaN(Fy) ? 0 : Fy);
+
+					var arenaW = arena.size()[0];
+					var arenaH = arena.size()[1];
+					var frameRate = 1/40;
+
+					if (this.x > arena.width) {
+						this.arena.remove(this);
+					}
+					if (this.x < 0 - this.width) {
+						this.arena.remove(this);
+					}
+
+					var dx = this.speed * frameRate * this.direction;
+
+					if (this.falling == true) {
+						var ay = ag + (Fy / this.mass);
+						this.fallSpeed += ay * frameRate;
+					}
+
+					this.x = this.x + dx * frameRate * 100;
+					this.y += this.fallSpeed * frameRate * 100;
+				}
+
+				collide(other)
+				{
+					if(other instanceof Barrier)
+					{
+						this.arena.add(new Explosion(arena, this.x + this.width / 2 - 100, this.y + this.height - 200, 100, 200, "flat", this.skins));
+						this.arena.remove(this);
+					}
+					if(other instanceof Tank)
+					{
+						this.arena.add(new Explosion(arena, other.x + other.width / 2 - 40, other.y + other.height - 170, 80, 170, "flat", this.skins));
+						other.health = 0;
+						this.arena.remove(this);
+					}
+					if(other instanceof Terrain)
+					{
+						if(this.y >= this.arena.ground_level - this.height)
+						{
+							this.arena.add(new Explosion(arena, this.x + this.width / 2 - 40, this.y + this.height - 170, 80, 170, "flat", this.skins));
+							this.arena.remove(this);
+						}
+					}
+				}
+
+				draw(ctx)
+				{
+					if(this.direction == -1)
+					{
+						ctx.drawImage(this.skins['planeR'], this.x  - xView, this.y  - yView, this.width, this.height);
+					}
+					else if(this.direction == 1)
+					{
+						ctx.drawImage(this.skins['planeL'], this.x  - xView, this.y  - yView, this.width, this.height);
+					}
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+
+				dropSupply()
+				{
+					var rand = Math.floor(Math.random() * 3);
+					if(rand == 0)
+					{
+						this.arena.add(new Supply(this.arena, this.x + this.width / 2, this.y + this.height, 50, 50, 1.5, "haste", this.skins['hasteDrop']));
+					}
+					else if(rand == 1)
+					{
+						this.arena.add(new Supply(this.arena, this.x + this.width / 2, this.y + this.height, 50, 50, 1.5, "armour", this.skins['armourDrop']));
+					}
+					else if(rand == 2)
+					{
+						this.arena.add(new Supply(this.arena, this.x + this.width / 2, this.y + this.height, 50, 50, 1.5, "ammo", this.skins['ammoDrop']));
+					}
+				}
+
+				dropBomb()
+				{
+					this.arena.add(new Bomb(Math.random().toString(36).substring(7),this.arena,this.skins, this.x + this.width / 2, this.y + this.height, 30, 50, 2.5));
+				}
+			}
+
+			class Supply extends Actor
+			{
+				constructor(arena, x, y, w, h, speed, loot, skins)
+				{
+					super();
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.speed = speed;
+					this.className = "SUPPLY";
+					this.loot = loot;
+					this.skins = skins;
+				}
+
+				move()
+				{
+					var frameRate = 1/40;
+					this.y += this.speed * frameRate * 100;
+				}
+
+				collide(other)
+				{
+					if(other instanceof Supply)
+					{
+						this.arena.remove(other);
+					}
+					if(other instanceof Terrain)
+					{
+						if(this.y >= this.arena.ground_level - this.height + 5)
+						{
+							this.speed = 0;
+						}
+					}
+					if(other instanceof Barrier)
+					{
+						this.arena.remove(this);
+					}
+				}
+
+				draw(ctx)
+				{
+					ctx.drawImage(this.skins, this.x  - xView, this.y  - yView, this.width, this.height);
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+			}
+
+			class Bomb extends Actor
+			{
+				constructor(identifier, arena, skins, x, y, w, h, speed)
+				{
+					super();
+					this.identifier = identifier;
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.speed = speed;
+					this.className = "BOMB";
+					this.skins = skins;
+				}
+
+				move()
+				{
+					var frameRate = 1/40;
+					this.y += this.speed * frameRate * 100;
+				}
+
+				collide(other)
+				{
+					if(other instanceof Supply)
+					{
+						this.arena.remove(other);
+					}
+					if(other instanceof Barrier)
+					{
+						if(other.destructible == 1)
+						{
+							this.arena.remove(other);
+						}
+						else if(other.destructible == 0)
+						{
+							this.arena.add(new Explosion(arena, this.x + this.width / 2 - 35, this.y + this.height - 150, 70, 150, "flat", this.skins));
+							this.arena.remove(this);
+						}
+					}
+					if(other instanceof Tank)
+					{
+						this.arena.add(new Explosion(arena, other.x + other.width / 2 - 40, other.y + other.height - 170, 80, 170, "flat", this.skins));
+						other.health = 0;
+						this.arena.remove(this);
+					}
+					if(other instanceof Terrain)
+					{
+						if(this.y >= this.arena.ground_level - this.height + 5)
+						{
+							this.arena.add(new Explosion(arena, this.x + this.width / 2 - 35, this.y + this.height - 150, 70, 150, "flat", this.skins));
+							this.arena.remove(this);
+						}
+					}
+				}
+
+				draw(ctx)
+				{
+					ctx.drawImage(this.skins['bomb'], this.x  - xView, this.y  - yView, this.width, this.height);
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+			}
+
+			class Terrain extends Actor
+			{
+				constructor(arena, x, y, w, h, type, k)
+				{
+					super();
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.type = type;
+					this.className = "TERRAIN";
+					this.friction = k;
+				}
+
+				move()
+				{
+					//
+				}
+
+				collide(other)
+				{
+					//
+				}
+
+				draw(ctx)
+				{
+					//
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+			}
+
+			class Barrier extends Actor
+			{
+				constructor(arena, x, y, w, h, destructible, skin) //skin: single parameter
+				{
+					super();
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.destructible = destructible;
+					this.skin = skin;
+					this.className = "BARRIER";
+				}
+
+				move()
+				{
+					//
+				}
+
+				collide(other)
+				{
+					if(other instanceof Barrier)
+					{
+						if(other.destructible == 0 && this.destructible == 1)
+						{
+							this.arena.remove(this);
+						}
+						else if(other.destructible == 1 && this.destructible == 1)
+						{
+							this.arena.remove(this);
+						}
+					}
+				}
+
+				draw(ctx)
+				{
+					ctx.drawImage(this.skin, this.x  - xView, this.y  - yView, this.width, this.height);
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+			}
+
+			class Explosion extends Actor
+			{
+				constructor(arena, x, y, w, h, type, skins)
+				{
+					super();
+					this.arena = arena;
+					this.x = x;
+					this.y = y;
+					this.width = w;
+					this.height = h;
+					this.type = type;
+					this.skins = skins;
+					this.className = "EXPLOSION";
+					this.lifeTime = 0;
+					this.multiplier = 0;
+				}
+
+				move()
+				{
+					//
+				}
+
+				collide(other)
+				{
+					//
+				}
+
+				draw(ctx)
+				{
+
+					if(this.type == "flat")
+					{
+						if(this.lifeTime == 98)
+						{
+							this.arena.remove(this);
+						}
+
+						var sprite_height = 240;
+						var sprite_width = 135;
+
+						if(this.lifeTime % 7 == 0)
+						{
+							this.multiplier = this.lifeTime / 7;
+						}
+						ctx.drawImage(this.skins['explosion'], sprite_width * this.multiplier, 0, sprite_width, sprite_height, this.x  - xView, this.y  - yView, this.width, this.height);
+						this.lifeTime++;
+					}
+
+					if(this.type == "generic")
+					{
+						if(this.lifeTime == 63)
+						{
+							this.arena.remove(this);
+						}
+
+						var sprite_height = 200;
+						var sprite_width = 200;
+
+						if(this.lifeTime % 7 == 0)
+						{
+							this.multiplier = this.lifeTime / 7;
+						}
+						ctx.drawImage(this.skins['explosion1'], sprite_width * this.multiplier, 0, sprite_width, sprite_height, this.x  - xView, this.y  - yView, this.width, this.height);
+						this.lifeTime++;
+					}
+				}
+
+				position()
+				{
+					return [this.x, this.y, this.width, this.height];
+				}
+
+			}
+			///////////// FINE CLASSI /////////////
+
+			///////////// INIZIO FUNZIONI UTILITY /////////////
+
+			function backToMenu()
+			{
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "block";
+				document.getElementById("createLobbyConfig").style.display = "none";
+				document.getElementById("joinLobbyConfig").style.display = "none";
+				document.getElementById("waitingPlayers").style.display = "none";
+			}
+
+			function startConnections()
+			{
+				linkAll();
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "block";
+				document.getElementById("createLobbyConfig").style.display = "none";
+				document.getElementById("joinLobbyConfig").style.display = "none";
+				document.getElementById("waitingPlayers").style.display = "none";
+			}
+
+			function createLobbies()
+			{
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "none";
+				document.getElementById("createLobbyConfig").style.display = "block";
+				document.getElementById("joinLobbyConfig").style.display = "none";
+				document.getElementById("waitingPlayers").style.display = "none";
+			}
+
+			function displayLobbies()
+			{
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "none";
+				document.getElementById("createLobbyConfig").style.display = "none";
+				document.getElementById("joinLobbyConfig").style.display = "block";
+				document.getElementById("waitingPlayers").style.display = "none";
+			}
+
+			var checking;
+
+			function waitPG(lobbyId)
+			{
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "none";
+				document.getElementById("createLobbyConfig").style.display = "none";
+				document.getElementById("joinLobbyConfig").style.display = "none";
+				document.getElementById("waitingPlayers").style.display = "block";
+
+				var randTips = Math.floor(Math.random() * 4); //choose a random tip
+
+				checking = setInterval(readyAll, 1000, lobbyId, randTips);
+			}
+
+			function readyAll(id, tip)
+			{
+				for(var i = 0; i < lobbies.length; i++){
+					if(lobbies[i].lobbyID == id && lobbies[i].started == 0){
+						var n = lobbies[i].players.length;
+						var n_max = lobbies[i].max_players;
+					}
+				}
+
+				var tipList = [
+					"You can shoot the planes to cause some troubles for your enemies...",
+					"Some structures are unbreakable others not...",
+					"Play 1 vs 1 to smash your opponent or 2 vs 2 if you want to have more fun...",
+					"In some cases the safer play is the best play..."
+				]
+
+				document.getElementById("waitingPlayers").innerHTML = "<b>Waiting for playes to join...</b><br><br>\
+				Players:" + n + "/" + n_max + "<br><br><br><br><br><div id=\"tips\">\
+				<img src=\"wait.gif\" alt=\"waiting for players\"><br><br><br>\
+				TIPS:<br><br>" + tipList[tip] + "</div>";
+
+				if(n == n_max){
+					clearInterval(checking);
+					for(var i = 0; i < lobbies.length; i++)
+					{
+						if(lobbies[i].lobbyID == currentLobby.lobbyID)
+						{
+							lobbies[i].started = 1;
+						}
+					}
+					currentLobby.started = 1;
+					setTimeout(function() {
+						readyCheck();
+					}, 2000);
+				}
+			}
+
+			function readyCheck()
+			{
+				document.getElementById("startButton").style.display = "none";
+				document.getElementById("mainMenu").style.display = "none";
+				document.getElementById("createLobbyConfig").style.display = "none";
+				document.getElementById("joinLobbyConfig").style.display = "none";
+				document.getElementById("waitingPlayers").style.display = "none";
+				document.getElementById("readyPlayers").style.display = "block";
+
+			}
+
+			function findWithAttr(array, attr, value)
+			{
+			    for(var i = 0; i < array.length; i += 1) {
+			        if(array[i][attr] == value) {
+			            return i;
+			        }
+			    }
+			    return -1;
+			}
+
+			function replacer(key,value)
+			{
+			  if (key=="skins") return undefined;
+			  else if (key=="arena") return undefined;
+			  else return value;
+			}
+
+			///////////// FINE FUNZIONI UTILITY /////////////
+
+
+			//IMPORT IMAGES AND SOUNDS
+			var imageArray = [];
+
+			//BACKGROUND IMAGES
+			var background = new Image();
+			background.src = "../src/background_TB1.png";
+
+			var front = new Image();
+			front.src = "../src/background_tanks_battle_front.png";
+
+			//IMAGES
+			var cannon = new Image();
+			cannon.src = "../src/cannons.png";
+			imageArray['cannon'] = cannon;
+
+			var hull = new Image();
+			hull.src = "../src/hulls.png";
+			imageArray['hull'] = hull;
+
+			var planeL = new Image();
+			planeL.src = "../src/bomberLeft.png";
+			imageArray['planeL'] = planeL;
+
+			var planeR = new Image();
+			planeR.src = "../src/bomberRight.png";
+			imageArray['planeR'] = planeR;
+
+			var building = new Image();
+			building.src = "../src/building.png";
+			imageArray['building'] = building;
+
+			var barricade = new Image();
+			barricade.src = "../src/barricade.png";
+			imageArray['barricade'] = barricade;
+
+			var ammoDrop = new Image();
+			ammoDrop.src = "../src/ammo_supply.png";
+			imageArray['ammoDrop'] = ammoDrop;
+
+			var armourDrop = new Image();
+			armourDrop.src = "../src/armour_supply.png";
+			imageArray['armourDrop'] = armourDrop;
+
+			var hasteDrop = new Image();
+			hasteDrop.src = "../src/haste_supply.png";
+			imageArray['hasteDrop'] = hasteDrop;
+
+			var bomb = new Image();
+			bomb.src = "../src/bomb.png";
+			imageArray['bomb'] = bomb;
+
+			var rock1 = new Image();
+			rock1.src = "../src/rock1.png";
+			imageArray['rock1'] = rock1;
+
+			var rock2 = new Image();
+			rock2.src = "../src/rock2.png";
+			imageArray['rock2'] = rock2;
+
+			var rock3 = new Image();
+			rock3.src = "../src/rock3.png";
+			imageArray['rock3'] = rock3;
+
+			var explosion = new Image();
+			explosion.src = "../src/explosion.png";
+			imageArray['explosion'] = explosion;
+
+			var explosion1 = new Image();
+			explosion1.src = "../src/explosion_gen.png";
+			imageArray['explosion1'] = explosion1;
+
+			//SOUNDS
+			var tank_firing = new Audio('../sound/Tank_Firing.mp3');
+			var tank_moving = new Audio('../sound/Tank_Moving.mp3');
+			var cannon_moving = new Audio('../sound/Cannon_Moving.mp3');
+			var reloading = new Audio('../sound/Reloading.mp3');
+
+			//PEER, ARENA AND LOBBY CREATION
+			var peerID = 0;
+			var arenaHeight = 800;
+			var arenaWidht = 5000;
+			var arenaGround = arenaHeight - 105;
+			var arena = new Arena(arenaWidht, arenaHeight, arenaGround, imageArray);
+			var lobbies = [];
+			var currentLobby;
+			var playersReady = [];
+
+			const peer = new Peer({host:'progetto-ti.herokuapp.com', secure:true, port:443, debug: 1})
+
+			///////////// INIZIO P2P LOGIC /////////////
+
+			// Array of remote peers ID and data channel
+			var remotePeerIds=[],// You need this to link with specific DOM element
+			connections=[]; // This is where you manage multi-connections
+
+			// Get your local peer id
+			peer.on('open', function(id)
+			{
+			  console.log('My peer ID is: ' + id);
+			  document.getElementById("myId").innerHTML = id;
+			});
+			// Start connection with other peer - and handle it
+			function getConnect(remotePeerId)
+			{
+				var conn = peer.connect(remotePeerId);
+				handleConnection(conn);
+			}
+
+			// Ok now you need to handle the received connection too
+			peer.on('connection',function(conn)
+			{
+				 handleConnection(conn);
+			});
+
+			// Handle connection - this is most important part
+			function handleConnection(conn)
+			{
+				//console.log(conn);
+				if(!remotePeerIds.includes(conn.peer) && conn.peer != peer.id && conn.peer != "")
+				{
+					remotePeerIds.push(conn.peer); // Add remote peer to list
+
+					conn.on('open', function()
+					{
+						console.log("Connected with peer: "+conn.peer);
+						var li = document.createElement("li");
+
+						li.appendChild(document.createTextNode(conn.peer));
+						document.getElementById("connectedPeers").appendChild(li);
+
+						conn.on('data',function(data)
+						{
+						   // You can do whatever you want with the data from this connection - this is also the main part
+						   dataHandler(conn,data);
+						});
+						conn.on('error',function()
+						{
+						  // handle error
+						  connectionError(conn);
+						});
+
+						conn.on('close',function()
+						{
+						  // Handle connection closed
+						  connectionClose(conn);
+						});
+						connections.push(conn);
+					});
+				}
+			}
+
+			// So now you have multi-connections. If you want to send a message to all other peer, just using for loop with all the connections
+			function broadcastMessage(message)
+			{
+				for(var i=0;i<connections.length;i++)
+				{
+					connections[i].send(message);
+				}
+			}
+
+			// Or if you want to send a message to a specific peer - you need to know his peerid
+			function privateMessage(remotePeerId,message)
+			{
+				for(var i=0;i<connections.length;i++)
+				{
+					if(connections[i].peer==remotePeerId)
+					{
+					   connections[i].send(message);
+					   break;
+					}
+				}
+			}
+
+			var startTime;
+			function dataHandler(conn,data)
+			{
+				var message = JSON.parse(data);
+
+				//Handle GameProtocol Messages
+				if(message.protocol == "GameProtocol")
+				{
+					//console.log(message);
+					//console.log(currentLobby.lobbyID);
+					if(message.messageType == "UPDATE_ACTORS" && message.data.lobbyID == currentLobby.lobbyID)
+					{
+						if (findWithAttr(arena.actors, "identifier", message.data.actor.identifier) >= 0)
+						{
+						  //the tank already exists in the arena of this client
+						  var index = findWithAttr(arena.actors, "identifier", message.data.actor.identifier)
+						  Object.assign(arena.actors[index], message.data.actor);
+						  arena.actors[index].arena = arena;
+						}
+						else
+						{
+							//new actor
+							console.log(message.data.actor.className);
+							if(message.data.actor.className == "TANK")
+							{
+								arena.add(new Tank(message.data.actor.identifier, arena));
+
+								var index = findWithAttr(arena.actors, "identifier", message.data.actor.identifier);
+								arena.actors[index].skins = imageArray;
+								arena.actors[index].arena = arena;
+							}
+							else if (message.data.actor.className == "SHELL")
+							{
+								arena.add(new Shell(message.data.actor.identifier, arena, imageArray));
+							}
+							else if (message.data.actor.className == "PLANE")
+							{
+								arena.add(new Plane(message.data.actor.identifier, arena, imageArray));
+							}
+							else if (message.data.actor.className == "BOMB")
+							{
+								arena.add(new Bomb(message.data.actor.identifier, arena, imageArray));
+							}
+							var index = findWithAttr(arena.actors, "identifier", message.data.actor.identifier);
+							Object.assign(arena.actors[index], message.data.actor);
+						}
+					}
+
+					if(message.messageType == "PLAYER_READY" && message.data.lobbyID == currentLobby.lobbyID)
+					{
+						var playerIndex = -1;
+						for(var i = 0; i < playersReady.length; i++)
+						{
+							if(playersReady[i].player == message.data.player)
+							{
+								playersReady[i].ready = 1;
+								playersReady[i].position = message.data.position;
+							}
+						}
+
+						if(playerIndex == -1)
+						{
+							playersReady.push({
+								player: message.data.player,
+								ready: 1,
+								position: message.data.position
+							});
+						}
+
+						var count = 0;
+						for(var i = 0; i < playersReady.length; i++)
+						{
+							if(playersReady[i].ready == 1)
+								count++;
+						}
+
+						if(count == currentLobby.players.length)
+						{
+							playersReady.forEach(function(p)
+							{
+							if(p.player == peer.id)
+								startGame(p.position);
+							});
+
+							for(var i = 0; i < lobbies.length; i++)
+							{
+								if(lobbies[i].lobbyID == currentLobby.lobbyID)
+									lobbies[i].started = 1;
+							}
+							currentLobby.started = 1;
+
+							updateSelectLobby();
+						}
+
+					}
+					if(message.messageType == "SCORE_UPDATE" && message.data.lobbyID == currentLobby.lobbyID)
+					{
+						arena.red_deaths = message.data.red;
+						arena.blue_deaths = message.data.blue;
+					}
+				}
+				//Handle LobbyProtocol Messages
+				else if(message.protocol == "LobbyProtocol")
+				{
+					if(message.messageType == "LOBBY_DISCOVER_RESP")
+					{
+						message.data.lobbies.forEach(function(l)
+						{
+							var lobbyIndex = -1;
+							for(var i = 0; i < lobbies.length; i++)
+							{
+								if(lobbies[i].lobbyID == l.lobbyID)
+									lobbyIndex = i;
+							}
+
+							//Lobby trovata tra quelle in locale
+							if(lobbyIndex != -1)
+							{
+								lobbies[lobbyIndex].started = l.started;
+								lobbies[lobbyIndex].players = l.players;
+							}
+							else
+							{
+								lobbies.push({
+									lobbyID: l.lobbyID,
+									started: l.started,
+									players: l.players,
+									max_players: l.max_players
+								});
+							}
+						});
+
+						updateSelectLobby();
+					}
+					else if(message.messageType == "LOBBY_DISCOVER_REQ")
+					{
+						broadcastMessage(JSON.stringify({protocol: "LobbyProtocol", messageType: "LOBBY_DISCOVER_RESP", data: {lobbies: lobbies}}));
+					}
+					else if(message.messageType == "LOBBY_JOIN")
+					{
+						for(var i = 0; i < lobbies.length; i++)
+						{
+							if(lobbies[i].lobbyID == message.data.lobbyID)
+								if(lobbies[i].players.indexOf(message.data.player) == -1)
+									lobbies[i].players.push(message.data.player);
+						}
+
+						updateSelectLobby();
+					}
+				}
+				else if (message.protocol == "PingProtocol")
+				{
+					if(message.messageType == "PING")
+					{
+						broadcastMessage(JSON.stringify({protocol: "PingProtocol", messageType: "PONG", data: {player: peer.id}}))
+					}
+					else if(message.messageType == "PONG")
+					{
+						var endTime = new Date();
+						var timeDiff = endTime - startTime;
+						console.log("ping with player " + message.data.player + ": " + timeDiff);
+					}
+				}
+			}
+
+			function linkAll()
+			{
+				peer.listAllPeers(function cb(list)
+				{
+					for (var index = 0; index < list.length; ++index)
+					{
+						if(peer.id != null)getConnect(list[index]);
+					}
+				});
+			}
+
+			function connectionClose(conn)
+			{
+				//remotePeerIds.remove(conn.peer);
+				console.log("Disconnected from peer: " + conn.peer);
+				const index = remotePeerIds.indexOf(5);
+				if (index > -1)
+				{
+				  remotePeerIds.splice(index, 1);
+				}
+			}
+
+			function connectionError(conn)
+			{
+			}
+
+			///////////// INIZIO LOBBY LOGIC /////////////
+
+			function createLobby(lobbyID, mxP)
+			{
+				broadcastMessage(JSON.stringify({protocol: "LobbyProtocol", messageType: "LOBBY_DISCOVER_RESP", data: {lobbies: [{lobbyID: lobbyID, started: 0, players: [], max_players: mxP}]}}));
+			}
+
+			function discoverLobbies()
+			{
+				broadcastMessage(JSON.stringify({protocol: "LobbyProtocol", messageType: "LOBBY_DISCOVER_REQ", data: {}}));
+			}
+
+			function joinLobby(lobbyID)
+			{
+				//Finds current lobby in list lobbies and adds itself to players
+				for(var i = 0; i < lobbies.length; i++)
+				{
+					if(lobbies[i].lobbyID == lobbyID && lobbies[i].started == 0)
+					{
+						if(lobbies[i].players.indexOf(peer.id) == -1)
+							lobbies[i].players.push(peer.id);
+						currentLobby = lobbies[i];
+					}
+				}
+				broadcastMessage(JSON.stringify({protocol: "LobbyProtocol", messageType: "LOBBY_JOIN", data: {lobbyID: lobbyID, player: peer.id}}));
+			}
+
+			var team;
+			function sendReady(side)
+			{
+				let alreadyPressedReady = 0;
+				playersReady.forEach(function(p)
+				{
+					if(p.player == peer.id && p.ready == 1)
+						alreadyPressedReady = 1;
+				});
+
+				if(alreadyPressedReady == 0)
+				{
+					let flag = 1;
+					let pos;
+
+					while(flag == 1)
+					{
+						if(side == 0)
+						{
+							pos = Math.floor(Math.random() * (2000 - 100) + 200);
+							team = "red";
+						}
+						if(side == 1)
+						{
+							pos = Math.floor(3000+Math.random() * (1500 - 100) + 200);
+							team = "blue";
+						}
+						flag = 0;
+						playersReady.forEach(function(p)
+						{
+							if(pos < (p.position + 200) && pos > (p.position - 200))
+								flag = 1;
+						});
+					}
+
+					playersReady.push({
+									player: peer.id,
+									ready: 1,
+									position: pos
+								});
+
+					broadcastMessage(JSON.stringify({protocol: "GameProtocol", messageType: "PLAYER_READY", data: {player: peer.id, position: pos, lobbyID: currentLobby.lobbyID}}));
+
+					var count = 0;
+					for(var i = 0; i < playersReady.length; i++)
+					{
+						if(playersReady[i].ready == 1)
+							count++;
+					}
+
+					if(count == currentLobby.players.length)
+					{
+						setTimeout(startGame(pos), 0);
+
+						broadcastMessage(JSON.stringify({protocol: "LobbyProtocol", messageType: "LOBBY_DISCOVER_RESP", data: {lobbies: lobbies}}));
+						updateSelectLobby();
+					}
+				}
+			}
+
+			function updateSelectLobby()
+			{
+				$("#availableLobbies").empty();
+				var radioBox = document.getElementById("availableLobbies");
+
+				for(var i = 0; i< lobbies.length; i++)
+				{
+					var lobby = lobbies[i];
+					radioBox.innerHTML += "<label for=\"" + i + "\" style=\"background-color: white; padding: 5px; border: solid 1px black;\">id: " + lobby.lobbyID + " | \
+					players: " + lobby.players.length + " | max players: " + lobby.max_players + " | started: " + lobby.started + "</label>\
+					<input type=\"radio\" id=\"" + i + "\" name=\"lobbyForm\" value=\"" + lobby.lobbyID + "\"><br><br>";
+				}
+
+				var lobbyDiv = document.getElementById("availableLobbies");
+				var lobbyRadio = lobbyDiv.getElementsByTagName("input");
+				for(var i = 0; i < lobbies.length; i++)
+				{
+					var lobby = lobbies[i];
+					if(lobbyRadio[i].type === "radio" && lobby.started == 1)
+					{
+						lobbyRadio[i].disabled = true;
+					}
+				}
+			}
+
+			///////////// FINE LOBBY LOGIC /////////////
+
+			///////////// FINE P2P LOGIC /////////////
+
+			document.getElementById("startButton").onclick = function () { startConnections()};
+			document.getElementById("createLobbyButton").onclick = function () { createLobbies()};
+			document.getElementById("joinLobbyButton").onclick = function () { displayLobbies()};
+			document.getElementById("backButton1").onclick = function () { backToMenu()};
+			document.getElementById("backButton2").onclick = function () { backToMenu()};
+			// document.getElementById("connect2Peer").onclick = function () { getConnect(document.getElementById("otherPeer").value); };
+			// document.getElementById("sendData").onclick = function () { broadcastMessage(document.getElementById("data2Send").value); };
+			// document.getElementById("pingBtn").onclick = function () { startTime = new Date(); broadcastMessage(JSON.stringify({protocol: "PingProtocol", messageType: "PING"}));  };
+			document.getElementById("readyButton").onclick = function () {
+				document.getElementById("start_game").style.display = "none";
+				document.getElementById("canvas").style.display = "block";
+
+				var teamDiv = document.getElementById("readyPlayers");
+				var teamRadio = teamDiv.getElementsByTagName("input");
+				for(var i = 0; i < teamRadio.length; i++)
+				{
+					if(teamRadio[i].type === "radio" && teamRadio[i].checked)
+					{
+						if(peer.id != null && currentLobby != null)
+						{
+							sendReady(teamRadio[i].value);
+						}
+					}
+				}
+			};
+			document.getElementById("createLobbyBtn").onclick = function () {
+				createLobby(document.getElementById("lobbyID").value, document.getElementById("pNumber").value);
+				lobbies.push({lobbyID: document.getElementById("lobbyID").value, started: 0, players: [], max_players: document.getElementById("pNumber").value});
+				displayLobbies();
+				updateSelectLobby();
+			};
+			document.getElementById("joinLobbyBtn").onclick = function () {
+				var lobbyDiv = document.getElementById("availableLobbies");
+				var lobbyRadio = lobbyDiv.getElementsByTagName("input");
+				for(var i = 0; i < lobbyRadio.length; i++)
+				{
+					if(lobbyRadio[i].type === "radio" && lobbyRadio[i].checked)
+					{
+						joinLobby(lobbyRadio[i].value);
+						waitPG(lobbyRadio[i].value);
+					}
+				}
+				updateSelectLobby();
+			};
+			document.getElementById("refreshLobbyBtn").onclick = function () {
+				discoverLobbies();
+				updateSelectLobby();
+			};
+
+			///////////// INIZIO GAME /////////////
+
+			cannon_moving.loop = true;
+
+			//VIEWPORT
+			var sx, sy, dx, dy;
+			var sWidth, sHeight, dWidth, dHeight;
+			var xView=0, yView=0;
+
+			//GAME FUNCTIONS
+			function startGame(xPosition)
+			{
+				for(var i=0;i<connections.length;i++)
+				{
+					if(currentLobby.players.indexOf(connections[i].peer) == -1){
+						//connections[i].close();
+						//connections.splice(i,1);
+					}
+				}
+				//connections = [];
+				//remotePeerIds = [];
+
+				//Connects to the other players in the lobby
+				for(var i = 0; i < currentLobby.players.length; i++)
+				{
+					getConnect(currentLobby.players[i]);
+				}
+
+				var canvas, ctx = false;
+				var width;
+				var height;
+				var frameRate = 1/40; // Seconds
+				var frameDelay = frameRate * 1000; // ms
+				var loopTimer = false;
+
+				peerID = peer.id;
+
+				var tank1 = new Tank(peerID.substring(0,5), arena, xPosition, arena.ground_level, 130, 90, 2, team, 100, imageArray);
+				tank1.loadShell(new Shell(Math.random().toString(36).substring(7), arena, imageArray, tank1.x + tank1.width/2, tank1.y - 6, 0, 0, 70, peerID.substring(0,5), 60));
+
+				var church = new Barrier(arena, arena.width / 2 - 150, arena.ground_level - 400, 300, 400, 0, imageArray['building']);
+				arena.add(church);
+
+				var barricade1 = new Barrier(arena, arena.width / 2 - 280, arena.ground_level - 37, 40, 40, 0, imageArray['barricade']);
+				arena.add(barricade1);
+
+				var barricade2 = new Barrier(arena, arena.width / 2 + 240, arena.ground_level - 37, 40, 40, 0, imageArray['barricade']);
+				arena.add(barricade2);
+
+				var land = new Terrain(arena, 0, arena.ground_level - 5, arena.width, 40, "dirt", 0.1);
+				arena.add(land);
+
+				var mouse = {x: 0, y: 0, isDown: false};
+
+				var setup = function()
+				{
+					canvas = document.getElementById("canvas");
+					ctx = canvas.getContext("2d");
+
+					width = ctx.canvas.width;
+					height = ctx.canvas.height;
+
+					ctx.fillStyle = 'black';
+					ctx.strokeStyle = '#000000';
+
+					ctx.drawImage(background, 0, 0);
+					loopTimer = setInterval(loop, frameDelay);
+				}
+
+				var multipTime = 0;
+				var time = 10;
+
+				function endGame(clr)
+				{
+					if(tank1.color == clr)
+					{
+						var showTime = Math.floor(time);
+						ctx.strokeStyle = 'black';
+						ctx.fillStyle = 'gray';
+						ctx.fillRect(ctx.canvas.width / 2 - 200, ctx.canvas.height / 2 - 100, 400, 200);
+						ctx.strokeRect(ctx.canvas.width / 2 - 200, ctx.canvas.height / 2 - 100, 400, 200);
+						ctx.fillStyle = 'rgb(30, 50, 10)';
+						ctx.textAlign = "center";
+						ctx.font = "bold 30px Courier New";
+						ctx.fillText("YOU LOSE!", ctx.canvas.width / 2, ctx.canvas.height / 2 - 20);
+						ctx.fillText("Restarting in: " + showTime, ctx.canvas.width / 2, ctx.canvas.height / 2 + 50);
+						time -= 1/40;
+						if(showTime == 0){
+							location.reload();
+						}
+					}
+					else
+					{
+						var showTime = Math.floor(time);
+						ctx.strokeStyle = 'black';
+						ctx.fillStyle = 'gray';
+						ctx.fillRect(ctx.canvas.width / 2 - 200, ctx.canvas.height / 2 - 100, 400, 200);
+						ctx.strokeRect(ctx.canvas.width / 2 - 200, ctx.canvas.height / 2 - 100, 400, 200);
+						ctx.fillStyle = 'rgb(30, 50, 10)';
+						ctx.textAlign = "center";
+						ctx.font = "bold 30px Courier New";
+						ctx.fillText("YOU WIN!", ctx.canvas.width / 2, ctx.canvas.height / 2 - 20);
+						ctx.fillText("Restarting in: " + showTime, ctx.canvas.width / 2, ctx.canvas.height / 2 + 50);
+						time -= 1/40;
+						if(showTime == 0){
+							location.reload();
+						}
+					}
+					ctx.textAlign = "left";
+				}
+
+				var loop = function()
+				{
+					ctx.clearRect(0,0,width,height);
+
+					arena.actors.sort(function(a) {return (a instanceof Explosion) ? 1 : -1;});
+
+					// VIEWPORT CALCULATION
+					xView = tank1.x - ctx.canvas.width / 2 + tank1.width;
+					if(xView < 0) xView = 0;
+					if(xView > arena.width - ctx.canvas.width) xView = arena.width - ctx.canvas.width;
+
+					// offset point to crop the image
+					sx = xView;
+					sy = yView;
+					sWidth =  ctx.canvas.width;
+					sHeight = ctx.canvas.height;
+					if(background.width - sx < sWidth)
+					{
+						sWidth = background.width - sx;
+					}
+					if(background.height - sy < sHeight)
+					{
+						sHeight = background.height - sy;
+					}
+
+					// location on canvas to draw the croped image
+					dx = 0;
+					dy = 0;
+
+					// match destination with source to not scale the image
+					dWidth = sWidth;
+					dHeight = sHeight;
+
+					// DRAW AND MOVE ACTORS, BACKGROUND
+					ctx.drawImage(background, sx, sy, sWidth, sHeight, dx, dy, ctx.canvas.width, ctx.canvas.height);
+					arena.actors.forEach(function(a)
+					{
+						a.draw(ctx);
+					});
+
+					arena.move_all();
+
+					arena.actors.forEach(function (object)
+					{
+						if(object.identifier == peerID.substring(0,5) || object.tankIdentifier == peerID.substring(0,5) || object.className == "PLANE" || object.className == "BOMB")
+						{
+							broadcastMessage(JSON.stringify({protocol: "GameProtocol", messageType: "UPDATE_ACTORS", data: {actor: object, lobbyID: currentLobby.lobbyID}},replacer));
+						}
+					});
+
+					//ctx.drawImage(front, sx, sy, sWidth, sHeight, dx, dy, ctx.canvas.width, ctx.canvas.height);
+
+					arena.radar(ctx);
+
+					// GAME INFORMATIONS
+					ctx.fillStyle = 'rgb(0, 0, 0)';
+					ctx.font = "20px Arial";
+					ctx.fillText("Speed: " + tank1.vx.toFixed(2), 15, 30);
+					ctx.fillText("Health: " + tank1.health, 15, 60);
+					ctx.fillText("Ammo: " + tank1.ammo, 15, 90);
+
+					ctx.fillText("Red points: " + arena.blue_deaths, ctx.canvas.width - 500, 120);
+					ctx.fillText("Blue points: " + arena.red_deaths, ctx.canvas.width - 170, 120);
+
+					tank1.emptyAmmo(ctx);
+
+					arena.gameLogic();
+
+					if(arena.red_deaths >= arena.game_over)
+					{
+						endGame("red");
+					}
+					else if(arena.blue_deaths >= arena.game_over)
+					{
+						endGame("blue");
+					}
+					else if(tank1.alive == false)
+					{
+						setTimeout(function(){tank1.alive = true;tank1.health = 100;arena.add(tank1);}, 2000);
+					}
+				}
+
+				setup();
+
+				// KEYBOARD EVENTS
+
+				document.addEventListener('keydown', function(event)
+				{
+					if(event.keyCode == 39)
+					{
+						event.preventDefault();
+						tank1.go_right();
+						tank_moving.play();
+					}
+					if(event.keyCode == 37)
+					{
+						event.preventDefault();
+						tank1.go_left();
+						tank_moving.play();
+					}
+					if(event.keyCode == 32)
+					{
+						event.preventDefault();
+						tank1.shoot(ctx);
+					}
+					if(event.keyCode == 38)
+					{
+						event.preventDefault();
+						if(tank1.color == "red")
+						{
+							tank1.raiseCannon();
+						}
+						else
+						{
+							tank1.lowerCannon();
+						}
+						cannon_moving.play();
+					}
+					if(event.keyCode == 40)
+					{
+						event.preventDefault();
+						if(tank1.color == "red")
+						{
+							tank1.lowerCannon();
+						}
+						else
+						{
+							tank1.raiseCannon();
+						}
+						cannon_moving.play();
+					}
+					if(event.keyCode == 90) // SPAWN A PLANE FROM LEFT (Z)
+					{
+						event.preventDefault();
+						var plane = new Plane(Math.random().toString(36).substring(7), arena, imageArray, 0, Math.random() * (160 - 90) + 90, 220, 60, 100, 1);
+						arena.add(plane);
+					}
+					if(event.keyCode == 88) // SPAWN A PLANE FROM RIGHT (X)
+					{
+						event.preventDefault();
+						var plane = new Plane(Math.random().toString(36).substring(7), arena, imageArray, arena.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1);
+						arena.add(plane);
+					}
+					if(event.keyCode == 67) // EVERY PLANE SPAWN A LOOT CRATE (C)
+					{
+						event.preventDefault();
+						arena.actors.forEach(function(a)
+						{
+							if(a.className == "PLANE")
+							{
+								a.dropSupply();
+							}
+						});
+					}
+					if(event.keyCode == 77) // SELF DESTRUCTION (M)
+					{
+						event.preventDefault();
+						tank1.health = 0;
+					}
+				});
+
+				document.addEventListener('keyup', function(event)
+				{
+					if(event.keyCode == 39)
+					{
+						event.preventDefault();
+						tank1.stop();
+						tank_moving.pause();
+					}
+					if(event.keyCode == 37)
+					{
+						event.preventDefault();
+						tank1.stop();
+						tank_moving.pause();
+					}
+					if(event.keyCode == 38)
+					{
+						event.preventDefault();
+						tank1.stopCannon();
+						cannon_moving.pause();
+					}
+					if(event.keyCode == 40)
+					{
+						event.preventDefault();
+						tank1.stopCannon();
+						cannon_moving.pause();
+					}
+				});
+			}
+		</script>
+	</body>
+</html>

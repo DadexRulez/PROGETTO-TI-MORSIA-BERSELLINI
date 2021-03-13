@@ -1,0 +1,138 @@
+#start_game{
+  position: relative;
+  border: 2px solid rgb(0, 0, 0);
+  width: 1400px;
+  height: 800px;
+  background-image: url("mainMenuBackground.png");
+}
+#startButton{
+  position: relative;
+  top: 45%;
+  left: 50%;
+  margin: -75px 0 0 -150px;
+  width: 300px;
+  height: 150px;
+  font-size: 40px;
+  border-radius: 15px;
+  display: block;
+}
+#mainMenu{
+  position: relative;
+  top: 45%;
+  left: 50%;
+  margin: -50px 0 0 -350px;
+  width: 700px;
+  height: 100px;
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0);
+  text-align: center;
+  display: none;
+}
+#createLobbyButton{
+  background-image: url("missileButton.png");
+  background-color: rgba(0, 0, 0, 0);
+  background-position: center;
+  background-size: cover;
+  border: 0px;
+  padding-left: 70px;
+  color: rgb(170, 150, 50);
+  font-size: 25px;
+  width: 250px;
+  height: 70px;
+}
+#joinLobbyButton{
+  background-image: url("missileButton.png");
+  background-color: rgba(0, 0, 0, 0);
+  background-position: center;
+  background-size: cover;
+  border: 0px;
+  padding-left: 70px;
+  color: rgb(170, 150, 50);
+  font-size: 25px;
+  width: 250px;
+  height: 70px;
+}
+#refreshLobbyBtn{
+  position: absolute;
+  top: 20px;
+  right: 80px;
+}
+#joinLobbyBtn{
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+}
+#backButton1{
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+#backButton2{
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+#readyButton{
+  background-color: rgba(94, 117, 49);
+  font-size: 40px;
+  text-align: center;
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 25px;
+  width: 150px;
+  height: 80px;
+}
+#availableLobbies{
+  position: absolute;
+  top: 50px;
+  height: 180px;
+  padding: 5px;
+  border: 1px solid rgb(0, 0, 0);
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+#createLobbyConfig{
+  position: relative;
+  top: 40%;
+  left: 50%;
+  margin: -100px 0 0 -250px;
+  width: 500px;
+  height: 200px;
+  border: 1px solid rgb(0, 0, 0);
+  border-radius: 5px;
+  background-color: rgb(210, 210, 210);
+  text-align: center;
+  padding-top: 100px;
+  display: none;
+}
+#joinLobbyConfig{
+  position: relative;
+  top: 45%;
+  left: 50%;
+  margin: -150px 0 0 -300px;
+  width: 600px;
+  height: 300px;
+  border-radius: 5px;
+  background-color: rgb(210, 210, 210);
+  padding: 20px;
+  display: none;
+}
+#waitingPlayers{
+  padding: 20px;
+  font-size: 25px;
+  display: none;
+}
+#tips{
+  font-size: 20px;
+  text-align: center;
+  padding-top: 50px;
+}
+#readyPlayers{
+  font-size: 35px;
+  text-align: center;
+  padding-top: 200px;
+  display: none;
+}
+space50{
+  padding-left: 50px;
+}
