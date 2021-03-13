@@ -130,11 +130,11 @@
 						var spawnPos = Math.floor(Math.random() * 2);
 						if(spawnPos == 0)
 						{
-							this.add(new Plane(Math.random().toString(36).substring(7),peerID.substring(0,5), this, imageArray, -200, Math.random() * (160 - 90) + 90, 220, 60, 100, 1));
+							this.add(new Plane(Math.random().toString(36).substring(7), this, imageArray, -200, Math.random() * (160 - 90) + 90, 220, 60, 100, 1,peerID.substring(0,5)));
 						}
 						else if(spawnPos == 1)
 						{
-							this.add(new Plane(Math.random().toString(36).substring(7),peerID.substring(0,5), this, imageArray, this.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1));
+							this.add(new Plane(Math.random().toString(36).substring(7), this, imageArray, this.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1,peerID.substring(0,5)));
 						}
 					}
 					else if(rand > 3 && rand <= 12) // ALL PLAINS DROP A LOOT CRATE
@@ -700,11 +700,11 @@
 
 			class Plane extends Actor
 			{
-				constructor(identifier, tankIdentifier, arena, skins, x, y, w, h, speed, direction)
+				constructor(identifier, arena, skins, x, y, w, h, speed, direction, tankIdentifier)
 				{
 					super();
 					this.identifier = identifier;
-					this.tankIdentifier = tankIdentifier;
+					
 					this.arena = arena;
 					this.x = x;
 					this.y = y;
@@ -713,7 +713,7 @@
 					this.speed = speed;
 					this.direction = direction;
 					this.skins = skins;
-
+					this.tankIdentifier = tankIdentifier;
 					this.health = 1;
 					this.fallSpeed = 0;
 					this.falling = false;
@@ -815,7 +815,7 @@
 
 				dropBomb()
 				{
-					this.arena.add(new Bomb(Math.random().toString(36).substring(7),peerID.substring(0,5),this.arena,this.skins, this.x + this.width / 2, this.y + this.height, 30, 50, 2.5));
+					this.arena.add(new Bomb(Math.random().toString(36).substring(7),this.arena,this.skins, this.x + this.width / 2, this.y + this.height, 30, 50, 2.5,peerID.substring(0,5)));
 				}
 			}
 
@@ -873,11 +873,10 @@
 
 			class Bomb extends Actor
 			{
-				constructor(identifier, tankIdentifier, arena, skins, x, y, w, h, speed)
+				constructor(identifier, arena, skins, x, y, w, h, speed, tankIdentifier)
 				{
 					super();
 					this.identifier = identifier;
-					this.tankIdentifier = tankIdentifier;
 					this.arena = arena;
 					this.x = x;
 					this.y = y;
@@ -886,6 +885,7 @@
 					this.speed = speed;
 					this.className = "BOMB";
 					this.skins = skins;
+					this.tankIdentifier = tankIdentifier;
 				}
 
 				move()
@@ -1994,13 +1994,13 @@
 					if(event.keyCode == 90) // SPAWN A PLANE FROM LEFT (Z)
 					{
 						event.preventDefault();
-						var plane = new Plane(Math.random().toString(36).substring(7),peerID.substring(0,5), arena, imageArray, 0, Math.random() * (160 - 90) + 90, 220, 60, 100, 1);
+						var plane = new Plane(Math.random().toString(36).substring(7), arena, imageArray, 0, Math.random() * (160 - 90) + 90, 220, 60, 100, 1, peerID.substring(0,5));
 						arena.add(plane);
 					}
 					if(event.keyCode == 88) // SPAWN A PLANE FROM RIGHT (X)
 					{
 						event.preventDefault();
-						var plane = new Plane(Math.random().toString(36).substring(7),peerID.substring(0,5), arena, imageArray, arena.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1);
+						var plane = new Plane(Math.random().toString(36).substring(7), arena, imageArray, arena.width, Math.random() * (160 - 90) + 90, 220, 60, 100, -1, peerID.substring(0,5));
 						arena.add(plane);
 					}
 					if(event.keyCode == 67) // EVERY PLANE SPAWN A LOOT CRATE (C)
