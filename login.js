@@ -5,7 +5,7 @@ var bodyParser = require('body-parser');
 var path = require('path');
 var crypto = require('crypto')
 
-var connection = mysql.createConnection({
+var connection = mysql.createPool({
 	host     : 'us-cdbr-east-03.cleardb.com',
 	user     : 'b712dd8247901f',
 	password : '86f91375',
@@ -87,7 +87,7 @@ app.post('/registration', function(request, response) {
 	}
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log('Server is running on port ${PORT}.');
 });
