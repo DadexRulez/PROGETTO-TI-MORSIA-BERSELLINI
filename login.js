@@ -6,10 +6,10 @@ var path = require('path');
 var crypto = require('crypto')
 
 var connection = mysql.createConnection({
-	host     : 'localhost',
-	user     : 'root',
-	password : '',
-	database : 'nodelogin'
+	host     : 'us-cdbr-east-03.cleardb.com',
+	user     : 'b712dd8247901f',
+	password : '86f91375',
+	database : 'heroku_22ad0e1c831c6bd'
 });
 
 var app = express();
