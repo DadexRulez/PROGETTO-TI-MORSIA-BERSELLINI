@@ -1850,7 +1850,7 @@
 						ctx.fillText("Restarting in: " + showTime, ctx.canvas.width / 2, ctx.canvas.height / 2 + 50);
 						time -= 1/40;
 						if(showTime == 0){
-							location.reload();
+							location.href = location.href;;
 						}
 					}
 					ctx.textAlign = "left";
