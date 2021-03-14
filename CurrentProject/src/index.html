@@ -108,13 +108,17 @@
 							var self = this.actors[index];
 							if(self instanceof Tank)
 							{
-								if(self.color == "red")
+								console.log(self.identifier);
+								console.log(peerID);
+								if(self.color == "red" && self.identifier == peerID.substring(0,5))
 								{
-									setTimeout (this.red_deaths++, 100);
+									this.red_deaths++;
+									broadcastMessage(JSON.stringify({protocol: "GameProtocol", messageType: "UPDATE_SCORE", data: {team:"red", lobbyID: currentLobby.lobbyID, replacer}}));
 								}
-								else if(self.color == "blue")
+								else if(self.color == "blue" && self.identifier == peerID.substring(0,5))
 								{
-									setTimeout (this.blue_deaths++, 100);
+									this.blue_deaths++;
+									broadcastMessage(JSON.stringify({protocol: "GameProtocol", messageType: "UPDATE_SCORE", data: {team:"blue", lobbyID: currentLobby.lobbyID, replacer}}));
 								}
 							}
 							this.actors.splice(index, 1);
@@ -704,7 +708,7 @@
 				{
 					super();
 					this.identifier = identifier;
-					
+
 					this.arena = arena;
 					this.x = x;
 					this.y = y;
@@ -1436,6 +1440,15 @@
 							}
 							var index = findWithAttr(arena.actors, "identifier", message.data.actor.identifier);
 							Object.assign(arena.actors[index], message.data.actor);
+						}
+					}
+
+					if(message.messageType == "UPDATE_SCORE" && message.data.lobbyID == currentLobby.lobbyID)
+					{
+						if(message.data.team == "red")
+							arena.red_deaths++;
+						else {
+							arena.blue_deaths++;
 						}
 					}
 
