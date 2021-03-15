@@ -1350,10 +1350,10 @@
 					conn.on('open', function()
 					{
 						console.log("Connected with peer: "+conn.peer);
-						var li = document.createElement("li");
+						//var li = document.createElement("li");
 
-						li.appendChild(document.createTextNode(conn.peer));
-						document.getElementById("connectedPeers").appendChild(li);
+						//li.appendChild(document.createTextNode(conn.peer));
+						//document.getElementById("connectedPeers").appendChild(li);
 
 						conn.on('data',function(data)
 						{
